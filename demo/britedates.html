@@ -1,0 +1,280 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Britedates Demo</title>
+  <style>
+    body { font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; margin:0; padding:0; background:#f7f7f7; }
+    #root { min-height:100vh; }
+    button{cursor:pointer}
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- React + ReactDOM (UMD) -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Demo app (JSX compiled in browser) -->
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // ========== Eventbrite integration ==========
+    // fetchEventbriteEvents now accepts a token parameter (so token can be stored in localStorage)
+    async function fetchEventbriteEvents(interests = [], location = { city: 'London' }, token = ''){
+      if(!token) return [];
+      const results = [];
+      for(const interest of interests){
+        const url = `https://www.eventbriteapi.com/v3/events/search/?q=${encodeURIComponent(interest)}&location.address=${encodeURIComponent(location.city)}&expand=venue`;
+        try{
+          const res = await fetch(url, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if(!res.ok) continue;
+          const data = await res.json();
+          if(data && Array.isArray(data.events)){
+            for(const e of data.events){
+              results.push({
+                id: e.id,
+                name: e.name?.text || 'Event',
+                venue: e.venue?.name || (e.venue?.address?.localized_address_display || ''),
+                date: e.start?.local || '',
+                price: e.is_free ? 'Free' : (e.ticket_availability?.minimum_ticket_price?.display || 'Paid'),
+                category: interest,
+                source: 'eventbrite'
+              });
+            }
+          }
+        }catch(err){
+          console.warn('Eventbrite fetch error', err);
+        }
+      }
+      // dedupe by id
+      const map = new Map();
+      for(const r of results) map.set(r.id, r);
+      return Array.from(map.values());
+    }
+
+    // Mock data
+    const MOCK_USERS = [
+      { id: '1', name: 'Sarah', age: 28, photo: '👩‍🎤', interests: ['music','art','food'], location: {city:'London'} },
+      { id: '2', name: 'Emma', age: 26, photo: '👩‍💼', interests: ['fitness','music','tech'], location: {city:'London'} },
+      { id: '3', name: 'Olivia', age: 27, photo: '👩‍🎨', interests: ['art','coffee','music'], location: {city:'London'} }
+    ];
+
+    const MOCK_EVENTS = {
+      music: [ { id:'1', name:'The Big Indie Tribute Festival', venue:'The Garage', date:'Saturday 8pm', price:'£13.69', category:'music' }, { id:'2', name:'Jazz Night', venue:'Soho', date:'Friday 9pm', price:'£25', category:'music' } ],
+      art: [ { id:'3', name:'Contemporary Art Exhibition', venue:'Tate Modern', date:'Sunday 2pm', price:'Free', category:'art' } ],
+      food: [ { id:'4', name:'Street Food Market', venue:'Camden', date:'Saturday 12pm', price:'£10', category:'food' } ],
+      fitness: [ { id:'5', name:'Outdoor Yoga Session', venue:'Hyde Park', date:'Sunday 10am', price:'£15', category:'fitness' } ]
+    };
+
+    const INTEREST_ICONS = {
+      music: '🎵', art: '📸', food: '🍔', fitness: '🏋️', tech: '💻', coffee: '☕'
+    };
+
+    function BritedatesApp(){
+      // Eventbrite token stored locally for testing (keeps it out of source)
+      const [eventbriteToken, setEventbriteToken] = useState(localStorage.getItem('eventbrite_token') || '');
+      useEffect(()=>{
+        try{ localStorage.setItem('eventbrite_token', eventbriteToken); }catch(e){}
+      },[eventbriteToken]);
+
+      const [screen, setScreen] = useState('onboarding');
+      const [currentUser, setCurrentUser] = useState({ name:'Tom', interests:[], location:{city:'London'} });
+      const [currentProfileIndex, setCurrentProfileIndex] = useState(0);
+      const [swipeDirection, setSwipeDirection] = useState(null);
+      const [matches, setMatches] = useState([]);
+      const [currentMatch, setCurrentMatch] = useState(null);
+      const [suggestedEvents, setSuggestedEvents] = useState([]);
+
+      const availableInterests = ['music','art','food','fitness','tech','coffee'];
+
+      const handleInterestSelect = (interest)=>{
+        if(currentUser.interests.includes(interest)){
+          setCurrentUser({...currentUser, interests: currentUser.interests.filter(i=>i!==interest)});
+        } else {
+          setCurrentUser({...currentUser, interests: [...currentUser.interests, interest]});
+        }
+      };
+
+      const handleSwipe = (direction)=>{
+        setSwipeDirection(direction);
+        setTimeout(()=>{
+          if(direction==='right'){
+            const profile = MOCK_USERS[currentProfileIndex];
+            const mutualInterests = currentUser.interests.filter(i=>profile.interests.includes(i));
+            if(mutualInterests.length>0){
+              const match = { user: profile, mutualInterests, compatibility: Math.round((mutualInterests.length/Math.max(currentUser.interests.length, profile.interests.length))*100) };
+              setCurrentMatch(match);
+              setMatches(prev=>[...prev, match]);
+
+              // Try fetching live events from Eventbrite for mutual interests first.
+              (async ()=>{
+                const live = await fetchEventbriteEvents(mutualInterests, currentUser.location, eventbriteToken);
+                if(live && live.length>0){
+                  setSuggestedEvents(live);
+                }else{
+                  // fallback to mock events if none found
+                  const events = mutualInterests.flatMap(i=>MOCK_EVENTS[i]||[]);
+                  setSuggestedEvents(events);
+                }
+              })();
+
+              setScreen('match');
+            }
+          }
+          // next profile
+          setCurrentProfileIndex((idx)=> (idx < MOCK_USERS.length-1 ? idx+1 : 0));
+          setSwipeDirection(null);
+        }, 300);
+      };
+
+      const viewEvents = ()=> setScreen('events');
+      const backToSwipe = ()=>{ setScreen('swipe'); setCurrentMatch(null); };
+
+      // When opening events screen, if we have a current match but no suggestedEvents,
+      // try to fetch live Eventbrite results using the saved token, then fallback to mock.
+      useEffect(()=>{
+        (async ()=>{
+          if(screen==='events' && currentMatch && (!suggestedEvents || suggestedEvents.length===0)){
+            const live = await fetchEventbriteEvents(currentMatch.mutualInterests, currentUser.location, eventbriteToken);
+            if(live && live.length>0){
+              setSuggestedEvents(live);
+            } else {
+              const events = currentMatch.mutualInterests.flatMap(i=>MOCK_EVENTS[i]||[]);
+              setSuggestedEvents(events);
+            }
+          }
+        })();
+      },[screen, currentMatch, eventbriteToken]);
+
+      if(screen==='onboarding'){
+        return (
+          <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',padding:20,background:'linear-gradient(135deg,#E8967D 0%, #F4D8C8 100%)'}}>
+            <div style={{background:'white',padding:30,borderRadius:20,maxWidth:420,width:'100%'}}>
+              <h2 style={{marginBottom:12}}>What are you into?</h2>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:10,marginBottom:20}}>
+                {availableInterests.map(interest=>{
+                  const isSelected = currentUser.interests.includes(interest);
+                  return (
+                    <button key={interest} onClick={()=>handleInterestSelect(interest)} style={{padding:12,borderRadius:12,border:isSelected?'2px solid #E8967D':'1px solid #ddd',background:isSelected?'#FFF5EE':'white',display:'flex',gap:8,alignItems:'center',justifyContent:'center'}}>
+                      <span>{INTEREST_ICONS[interest]}</span>
+                      <span style={{textTransform:'capitalize'}}>{interest}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <button disabled={currentUser.interests.length===0} onClick={()=>setScreen('swipe')} style={{width:'100%',padding:16,borderRadius:50,border:'none',background: currentUser.interests.length>0 ? 'linear-gradient(135deg,#E8967D 0%, #F4A481 100%)':'#ddd',color:'white',fontWeight:700}}>Start Swiping</button>
+            </div>
+          </div>
+        );
+      }
+
+      if(screen==='swipe'){
+        const currentProfile = MOCK_USERS[currentProfileIndex];
+        return (
+          <div style={{minHeight:'100vh',padding:20,display:'flex',flexDirection:'column',background:'#f5f5f5'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+              <div style={{fontWeight:800}}>Britedates</div>
+              <div style={{background:'white',padding:'8px 16px',borderRadius:20}}>{matches.length} matches</div>
+            </div>
+
+            <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center'}}>
+              <div style={{width:'100%',maxWidth:400,background:'white',borderRadius:20,overflow:'hidden',boxShadow:'0 10px 40px rgba(0,0,0,0.15)'}}>
+                <div style={{height:300,display:'flex',alignItems:'center',justifyContent:'center',fontSize:120,background:'linear-gradient(135deg,#FFE8CC 0%, #FFF5E6 100%)'}}>{currentProfile.photo}</div>
+                <div style={{padding:20}}>
+                  <h2 style={{marginBottom:8}}>{currentProfile.name}, {currentProfile.age}</h2>
+                  <div style={{color:'#666',marginBottom:12}}>📍 {currentProfile.location.city}</div>
+                  <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                    {currentProfile.interests.map(i=>{
+                      const isMutual = currentUser.interests.includes(i);
+                      return (<div key={i} style={{padding:'8px 12px',borderRadius:20,background:isMutual?'#FFF5EE':'#f0f0f0',border:isMutual?'2px solid #E8967D':'none'}}>{INTEREST_ICONS[i]} {i}</div>);
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{display:'flex',justifyContent:'center',gap:30,marginTop:20}}>
+              <button onClick={()=>handleSwipe('left')} style={{width:70,height:70,borderRadius:'50%',border:'3px solid #ddd',background:'white'}}>✖️</button>
+              <button onClick={()=>handleSwipe('right')} style={{width:70,height:70,borderRadius:'50%',border:'none',background:'linear-gradient(135deg,#E8967D 0%, #F4A481 100%)',color:'white'}}>❤️</button>
+            </div>
+          </div>
+        );
+      }
+
+      if(screen==='match' && currentMatch){
+        return (
+          <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',padding:20,background:'linear-gradient(135deg,#E8967D 0%, #F4A481 100%)'}}>
+            <div style={{background:'white',padding:30,borderRadius:20,maxWidth:520,width:'100%',textAlign:'center'}}>
+              <div style={{fontSize:80,marginBottom:10}}>🔥</div>
+              <h1 style={{marginBottom:10}}>It's a Match!</h1>
+              <div style={{fontSize:80}}>{currentMatch.user.photo}</div>
+              <h2>You and {currentMatch.user.name}</h2>
+              <div style={{background:'#FFF3E0',padding:12,borderRadius:12,margin:'16px 0'}}>
+                <div style={{fontSize:48,color:'#FF6B35',fontWeight:900}}>{currentMatch.compatibility}%</div>
+                <div style={{color:'#666'}}>Compatibility Match</div>
+              </div>
+
+              <div style={{display:'flex',gap:8,justifyContent:'center',flexWrap:'wrap',marginBottom:16}}>
+                {currentMatch.mutualInterests.map(mi=> <div key={mi} style={{padding:'10px 20px',borderRadius:25,background:'#FFF5EE',border:'2px solid #E8967D'}}>{INTEREST_ICONS[mi]} {mi}</div>)}
+              </div>
+
+              <button onClick={viewEvents} style={{width:'100%',padding:14,borderRadius:50,border:'none',background:'linear-gradient(135deg,#E8967D 0%, #F4A481 100%)',color:'white',fontWeight:800,marginBottom:8}}>See Perfect Date Ideas 🎉</button>
+              <button onClick={backToSwipe} style={{width:'100%',padding:14,borderRadius:50,border:'2px solid #E8967D',background:'white',color:'#E8967D',fontWeight:700}}>Keep Swiping</button>
+            </div>
+          </div>
+        );
+      }
+
+      if(screen==='events'){
+        return (
+          <div style={{minHeight:'100vh',padding:20,background:'#f5f5f5'}}>
+            <div style={{maxWidth:800,margin:'0 auto'}}>
+              <button onClick={backToSwipe} style={{padding:'8px 14px',borderRadius:20,border:'2px solid #E8967D',background:'white',marginBottom:20}}>← Back</button>
+              <h1 style={{fontSize:28,fontWeight:900,marginBottom:8}}>Perfect Date Ideas</h1>
+              <p style={{color:'#666',marginBottom:12}}>For you and {currentMatch?.user.name}</p>
+
+              <div style={{display:'flex',gap:10,alignItems:'center',marginBottom:18}}>
+                <input placeholder="Paste Eventbrite token (local only)" value={eventbriteToken} onChange={(e)=>setEventbriteToken(e.target.value)} style={{flex:1,padding:10,borderRadius:8,border:'1px solid #ddd'}} />
+                <button onClick={async ()=>{
+                  // save already handled via effect; trigger refetch
+                  if(currentMatch){
+                    const live = await fetchEventbriteEvents(currentMatch.mutualInterests, currentUser.location, eventbriteToken);
+                    if(live && live.length>0) setSuggestedEvents(live);
+                  }
+                }} style={{padding:'10px 14px',borderRadius:8,border:'none',background:'#E8967D',color:'white'}}>Load</button>
+              </div>
+
+              <div style={{display:'flex',flexDirection:'column',gap:12}}>
+                {(!suggestedEvents || suggestedEvents.length===0) && <div style={{padding:20,background:'white',borderRadius:12}}>No suggested events — try matching with someone who shares interests.</div>}
+                {suggestedEvents.map(ev=> (
+                  <div key={ev.id} style={{background:'white',padding:16,borderRadius:12,display:'flex',gap:12,alignItems:'center'}}>
+                    <div style={{width:60,height:60,borderRadius:12,background:'#FFF5EE',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28}}>{INTEREST_ICONS[ev.category]}</div>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:800,display:'flex',alignItems:'center',gap:8}}>{ev.name} {ev.source === 'eventbrite' && <span style={{fontSize:12,padding:'3px 8px',background:'#E8F0FF',color:'#1664D8',borderRadius:8}}>Eventbrite</span>}</div>
+                      <div style={{color:'#666'}}>{ev.venue} • {ev.date}</div>
+                    </div>
+                    <div style={{textAlign:'right'}}>
+                      <div style={{fontWeight:800,color:'#E8967D'}}>{ev.price}</div>
+                      <button style={{marginTop:8,padding:'8px 12px',borderRadius:20,border:'none',background:'linear-gradient(135deg,#E8967D 0%, #F4A481 100%)',color:'white'}}>Suggest</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      return null;
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<BritedatesApp />);
+  </script>
+</body>
+</html>

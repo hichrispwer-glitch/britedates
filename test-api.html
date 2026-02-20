@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brite Dates - Eventbrite API Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .test-section h2 {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            font-size: 14px;
+            color: #555;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.2);
+        }
+
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #e9ecef;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #dee2e6;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+            font-size: 13px;
+            line-height: 1.6;
+            display: none;
+        }
+
+        .status.show {
+            display: block;
+        }
+
+        .status.loading {
+            background: #e3f2fd;
+            color: #1565c0;
+            border: 1px solid #90caf9;
+        }
+
+        .status.success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            border: 1px solid #81c784;
+        }
+
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+            border: 1px solid #ef5350;
+        }
+
+        .status.warning {
+            background: #fff3e0;
+            color: #e65100;
+            border: 1px solid #ffb74d;
+        }
+
+        .result {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            display: none;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .result.show {
+            display: block;
+        }
+
+        .event-item {
+            padding: 10px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 13px;
+        }
+
+        .event-item:last-child {
+            border-bottom: none;
+        }
+
+        .event-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 3px;
+        }
+
+        .event-details {
+            color: #666;
+            font-size: 12px;
+        }
+
+        .endpoint-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-size: 13px;
+        }
+
+        .status-badge {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-badge.loading {
+            background: #2196F3;
+            animation: pulse 1.5s infinite;
+        }
+
+        .status-badge.success {
+            background: #4CAF50;
+        }
+
+        .status-badge.error {
+            background: #f44336;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .endpoints-list {
+            font-size: 12px;
+            color: #666;
+            padding: 10px;
+            background: white;
+            border-radius: 6px;
+            margin-top: 10px;
+        }
+
+        .endpoint-item {
+            padding: 5px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .endpoint-item:last-child {
+            border-bottom: none;
+        }
+
+        code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎉 Brite Dates - Eventbrite API Test</h1>
+        <p class="subtitle">Test if the Eventbrite API integration is working correctly</p>
+
+        <!-- Test Section 1: Endpoint Status -->
+        <div class="test-section">
+            <h2>📍 API Endpoint Status</h2>
+            
+            <div id="localStatus" class="endpoint-status">
+                <span class="status-badge loading"></span>
+                <span>Local (vercel dev):</span>
+                <code>http://localhost:3000/api/events</code>
+            </div>
+
+            <div id="vercelStatus" class="endpoint-status">
+                <span class="status-badge loading"></span>
+                <span>Vercel Production:</span>
+                <code>https://stickersmash.vercel.app/api/events</code>
+            </div>
+
+            <div class="endpoints-list">
+                <div class="endpoint-item"><strong>What these do:</strong></div>
+                <div class="endpoint-item">🔹 Check if API serverless function is deployed</div>
+                <div class="endpoint-item">🔹 Verify EVENTBRITE_API_KEY environment variable is set</div>
+                <div class="endpoint-item">🔹 Test Eventbrite API connectivity</div>
+            </div>
+        </div>
+
+        <!-- Test Section 2: Manual Event Search -->
+        <div class="test-section">
+            <h2>🔍 Search Events</h2>
+            
+            <div class="form-group">
+                <label for="searchQuery">Search Query:</label>
+                <input 
+                    type="text" 
+                    id="searchQuery" 
+                    placeholder="e.g., music, art, food" 
+                    value="music"
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="searchLocation">Location:</label>
+                <input 
+                    type="text" 
+                    id="searchLocation" 
+                    placeholder="e.g., London" 
+                    value="London"
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="testEndpoint">Test Endpoint:</label>
+                <select id="testEndpoint">
+                    <option value="local">Local (vercel dev)</option>
+                    <option value="vercel">Vercel Production</option>
+                </select>
+            </div>
+
+            <div class="button-group">
+                <button class="btn-primary" onclick="testSearch()">Search Events</button>
+                <button class="btn-secondary" onclick="clearResults()">Clear</button>
+            </div>
+
+            <div id="searchStatus" class="status"></div>
+            <div id="searchResult" class="result"></div>
+        </div>
+
+        <!-- Test Section 3: Quick Tests -->
+        <div class="test-section">
+            <h2>⚡ Quick Tests</h2>
+            
+            <button class="btn-primary" style="width: 100%; margin-bottom: 10px;" onclick="testLocalAPI()">
+                Test Local API (vercel dev)
+            </button>
+            <button class="btn-primary" style="width: 100%; margin-bottom: 10px;" onclick="testVercelAPI()">
+                Test Vercel API (Production)
+            </button>
+            <button class="btn-secondary" style="width: 100%;" onclick="location.reload()">
+                Refresh Page
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Check endpoint status on page load
+        window.addEventListener('load', () => {
+            checkEndpointStatus();
+        });
+
+        async function checkEndpointStatus() {
+            const endpoints = [
+                { id: 'localStatus', url: 'http://localhost:3000/api/events?query=music&location=London' },
+                { id: 'vercelStatus', url: 'https://stickersmash.vercel.app/api/events?query=music&location=London' }
+            ];
+
+            for (const endpoint of endpoints) {
+                try {
+                    const response = await fetch(endpoint.url, { signal: AbortSignal.timeout(5000) });
+                    const badge = document.querySelector(`#${endpoint.id} .status-badge`);
+                    
+                    if (response.ok || response.status === 400) {
+                        badge.className = 'status-badge success';
+                        console.log(`✓ ${endpoint.id} is reachable`);
+                    } else {
+                        badge.className = 'status-badge error';
+                        console.log(`✗ ${endpoint.id} returned status ${response.status}`);
+                    }
+                } catch (error) {
+                    const badge = document.querySelector(`#${endpoint.id} .status-badge`);
+                    badge.className = 'status-badge error';
+                    console.log(`✗ ${endpoint.id} is not reachable: ${error.message}`);
+                }
+            }
+        }
+
+        async function testSearch() {
+            const query = document.getElementById('searchQuery').value;
+            const location = document.getElementById('searchLocation').value;
+            const endpoint = document.getElementById('testEndpoint').value;
+
+            if (!query.trim() || !location.trim()) {
+                showStatus('searchStatus', 'Please enter both query and location', 'warning');
+                return;
+            }
+
+            const baseUrl = endpoint === 'local' 
+                ? 'http://localhost:3000/api/events'
+                : 'https://stickersmash.vercel.app/api/events';
+
+            const url = `${baseUrl}?query=${encodeURIComponent(query)}&location=${encodeURIComponent(location)}`;
+
+            showStatus('searchStatus', `Searching for "${query}" in ${location}...`, 'loading');
+
+            try {
+                const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+
+                if (!response.ok) {
+                    const text = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${text.substring(0, 100)}`);
+                }
+
+                const data = await response.json();
+
+                if (data.events && Array.isArray(data.events)) {
+                    showStatus('searchStatus', `Found ${data.events.length} events!`, 'success');
+                    displayEvents(data.events);
+                } else {
+                    showStatus('searchStatus', 'No events found or unexpected response format', 'warning');
+                    console.log('Response:', data);
+                }
+            } catch (error) {
+                showStatus('searchStatus', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testLocalAPI() {
+            showStatus('searchStatus', 'Testing local API...', 'loading');
+            const url = 'http://localhost:3000/api/events?query=music&location=London';
+
+            try {
+                const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+                const data = await response.json();
+
+                if (response.ok && data.events) {
+                    showStatus('searchStatus', `✓ Local API working! Found ${data.events.length} events`, 'success');
+                    displayEvents(data.events);
+                } else {
+                    showStatus('searchStatus', `✗ Local API returned: ${data.error || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                showStatus('searchStatus', `✗ Cannot reach local API: ${error.message}. Is "vercel dev" running?`, 'error');
+            }
+        }
+
+        async function testVercelAPI() {
+            showStatus('searchStatus', 'Testing Vercel API...', 'loading');
+            const url = 'https://stickersmash.vercel.app/api/events?query=music&location=London';
+
+            try {
+                const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+                const data = await response.json();
+
+                if (response.ok && data.events) {
+                    showStatus('searchStatus', `✓ Vercel API working! Found ${data.events.length} events`, 'success');
+                    displayEvents(data.events);
+                } else {
+                    showStatus('searchStatus', `✗ Vercel API returned: ${data.error || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                showStatus('searchStatus', `✗ Cannot reach Vercel API: ${error.message}. Is it deployed?`, 'error');
+            }
+        }
+
+        function displayEvents(events) {
+            const resultDiv = document.getElementById('searchResult');
+            resultDiv.innerHTML = '';
+
+            if (!events || events.length === 0) {
+                resultDiv.innerHTML = '<p style="color: #666; padding: 15px;">No events found</p>';
+                resultDiv.classList.add('show');
+                return;
+            }
+
+            events.slice(0, 10).forEach(event => {
+                const eventDiv = document.createElement('div');
+                eventDiv.className = 'event-item';
+                eventDiv.innerHTML = `
+                    <div class="event-name">${event.name?.text || 'Event'}</div>
+                    <div class="event-details">
+                        📅 ${event.start?.local || 'Date TBA'}<br>
+                        💰 ${event.is_free ? 'Free' : (event.ticket_availability?.minimum_ticket_price?.display || 'Paid')}<br>
+                        📍 ${event.venue?.name || 'Venue TBA'}
+                    </div>
+                `;
+                resultDiv.appendChild(eventDiv);
+            });
+
+            if (events.length > 10) {
+                const moreDiv = document.createElement('div');
+                moreDiv.className = 'event-item';
+                moreDiv.innerHTML = `<em>... and ${events.length - 10} more events</em>`;
+                resultDiv.appendChild(moreDiv);
+            }
+
+            resultDiv.classList.add('show');
+        }
+
+        function showStatus(elementId, message, type) {
+            const statusDiv = document.getElementById(elementId);
+            statusDiv.textContent = message;
+            statusDiv.className = `status show ${type}`;
+        }
+
+        function clearResults() {
+            document.getElementById('searchStatus').className = 'status';
+            document.getElementById('searchResult').className = 'result';
+            document.getElementById('searchQuery').value = '';
+            document.getElementById('searchLocation').value = '';
+        }
+    </script>
+</body>
+</html>
